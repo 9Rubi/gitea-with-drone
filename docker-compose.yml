@@ -7,74 +7,59 @@ networks:
 services:
   drone:
     image: drone/drone:1.8.0
-    volumes:
-    - ./drone-data/:/data
     ports:
-    - "$DRONE_EXTERNAL_PORT:80"
-    - "$DRONE_EXTERNAL_HTTPS_PORT:443"
-    restart: always
+    - "$DRONE_HTTP_PORT:80"
+    - "$DRONE_HTTPS_PORT:443"
     environment:
-    - DRONE_GITEA_SERVER=$DRONE_GITEA_SERVER
-    - DRONE_GITEA_CLIENT_ID=$DRONE_GITEA_OAUTH_ID
-    - DRONE_GITEA_CLIENT_SECRET=$DRONE_GITEA_OAUTH_SECRET
-    - DRONE_RPC_SECRET=$DRONE_RPC_SECRET
-    - DRONE_SERVER_HOST=$DRONE_EXTERNAL_HOST
-    - DRONE_SERVER_PROTO=$DRONE_EXTERNAL_PROTO
-    # - DRONE_USER_CREATE=username:rubi,admin:true
+    - DRONE_SERVER_HOST=${SERVER_IP}:${DRONE_HTTP_PORT}
+    - DRONE_GITEA_SERVER=http://${SERVER_IP}:${GITEA_WEB_PORT}
+    env_file:
+    - .env
+    restart: always
     networks:
     - cicd
+
   runner:
     image: drone/drone-runner-docker:1.4.0
     volumes:
     - /var/run/docker.sock:/var/run/docker.sock
-    ports:
-    - "$RUNNER_EXTERNAL_PORT:3000"
-    restart: always
     environment:
-    - DRONE_RPC_PROTO=$DRONE_RPC_PROTO
     - DRONE_RPC_HOST=drone:80
-    - DRONE_RPC_SECRET=$DRONE_RPC_SECRET
-    - DRONE_RUNNER_CAPACITY=2
-    - DRONE_RUNNER_NAME=DRONE_RUNNER
+    env_file:
+    - .env
+    ports:
+    - "$DRONE_RUNNER_PORT:3000"
+    restart: always
     networks:
     - cicd
+
   gitea:
-    # High speed iteration , must find suprised futures if check version.
     image: gitea/gitea:1.12.1 
     ports:
-    - "$GITEA_EXTERNAL_PORT:3000"
-    - "$GITEA_EXTERNAL_SSH_PORT:22"
+    - "$GITEA_WEB_PORT:3000"
+    - "$GITEA_SSH_PORT:22"
     volumes:
-    - ./gitea-data/:/data
     - /etc/timezone:/etc/timezone:ro
     - /etc/localtime:/etc/localtime:ro
-    environment:
-    - USER_UID=1000
-    - USER_GID=1000
-    - DB_TYPE=mysql
-    - DB_HOST=db_gitea:3306
-    - DB_NAME=$GITEA_DATABASE
-    - DB_USER=$GITEA_DATABASE_USERNAME
-    - DB_PASSWD=$GITEA_DATABASE_PASSWORD
-    - DOMAIN=$GITEA_CLONE_DOMAIN
-    - SSH_DOMAIN=$GITEA_CLONE_SSH_DOMAIN
-    - SSH_PORT=$GITEA_CLONE_SSH_PORT
-    - ROOT_URL=$GITEA_ROOT_URL_FOR_WEBSITE
-    # this http_port is not relate with clone url
-    - HTTP_PORT=3000
     restart: always
+    environment:
+    - DOMAIN=$SERVER_IP
+    - SSH_DOMAIN=$SERVER_IP
+    - SSH_PORT=$GITEA_SSH_PORT
+    - SSH_LISTEN_PORT=22
+    - ROOT_URL=$GITEA_WEB_URL
+    env_file:
+    - .env
     networks:
     - cicd
     depends_on:
     - db_gitea
+
   db_gitea:
     image: mariadb:10
     restart: always
-    environment:
-      - MYSQL_ROOT_PASSWORD=$MYSQL_ROOT_PASSWORD
-      - MYSQL_DATABASE=$GITEA_DATABASE
-      - MYSQL_USER=$GITEA_DATABASE_USERNAME
-      - MYSQL_PASSWORD=$GITEA_DATABASE_PASSWORD
+    env_file:
+    - .env
     networks:
     - cicd
 
